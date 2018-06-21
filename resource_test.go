@@ -11,29 +11,25 @@ import (
 	"text/template"
 
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/zap"
 )
 
 type ResourceSuite struct {
 	suite.Suite
-	logger     *zap.Logger
-	ch         *ContentHarvester
-	harvested  *HarvestedResources
-	markdown   map[string]*strings.Builder
-	serializer HarvestedResourcesSerializer
+	observatory *Observatory
+	ch          *ContentHarvester
+	harvested   *HarvestedResources
+	markdown    map[string]*strings.Builder
+	serializer  HarvestedResourcesSerializer
 }
 
 func (suite *ResourceSuite) SetupSuite() {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("can't initialize zap logger: %v", err)
-	}
-	suite.logger = logger
-	suite.ch = MakeContentHarvester(suite.logger, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)
+	observatory := MakeTestObservatory("default", "Harvester Test Suite")
+	suite.observatory = observatory
+	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)
 
 	tmpl, tmplErr := template.ParseFiles("serialize.md.tmpl")
 	if tmplErr != nil {
-		log.Fatalf("can't initialize template: %v", err)
+		log.Fatalf("can't initialize template: %v", tmplErr)
 	}
 	suite.markdown = make(map[string]*strings.Builder)
 	suite.serializer = HarvestedResourcesSerializer{
@@ -62,6 +58,10 @@ func (suite *ResourceSuite) SetupSuite() {
 		HandleInvalidURLDest: nil,
 		HandleIgnoredURL:     nil,
 	}
+}
+
+func (suite *ResourceSuite) TearDownSuite() {
+	suite.observatory.Close()
 }
 
 func (suite *ResourceSuite) harvestSingleURLFromMockTweet(text string, msgAndArgs ...interface{}) *HarvestedResource {
@@ -111,7 +111,9 @@ func (suite *ResourceSuite) TestResolvedURLRedirectedThroughHTMLProperly() {
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
 
 	// at this point we want to get the "new" (redirected) and test it
-	redirectedHR := harvestResourceFromReferrer(suite.ch, hr)
+	span := suite.observatory.Tracer.StartSpan("TestResolvedURLRedirectedThroughHTMLProperly")
+	defer span.Finish()
+	redirectedHR := harvestResourceFromReferrer(suite.ch, span, hr)
 	suite.Equal(redirectedHR.ReferredByResource(), hr, "The referral resource should be the same as the original")
 	isURLValid, isDestValid = redirectedHR.IsValid()
 	suite.True(isURLValid, "Redirected URL should be formatted validly")

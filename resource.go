@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"golang.org/x/net/html"
 	filetype "gopkg.in/h2non/filetype.v1"
 	"gopkg.in/h2non/filetype.v1/types"
@@ -273,7 +275,11 @@ func getMetaRefresh(resp *http.Response) (bool, string, error) {
 	return false, "", nil
 }
 
-func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource {
+func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLtext string) *HarvestedResource {
+	span := h.observatory.Tracer.StartSpan("harvestResource", opentracing.ChildOf(parentSpan.Context()))
+	defer span.Finish()
+	span.LogFields(log.String("origURLtext", origURLtext))
+
 	result := new(HarvestedResource)
 	result.origURLtext = origURLtext
 	result.harvestedDate = time.Now()
@@ -286,6 +292,11 @@ func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource
 		result.isDestValid = false
 		result.isURLIgnored = true
 		result.ignoreReason = fmt.Sprintf("Invalid URL '%s'", origURLtext)
+		span.LogFields(
+			log.Bool("isDestValid", result.isDestValid),
+			log.Bool("isURLIgnored", result.isURLIgnored),
+			log.String("ignoreReason", result.ignoreReason),
+		)
 		return result
 	}
 
@@ -294,6 +305,11 @@ func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource
 		result.isDestValid = false
 		result.isURLIgnored = true
 		result.ignoreReason = fmt.Sprintf("Invalid HTTP Status Code %d", resp.StatusCode)
+		span.LogFields(
+			log.Bool("isDestValid", result.isDestValid),
+			log.Bool("isURLIgnored", result.isURLIgnored),
+			log.String("ignoreReason", result.ignoreReason),
+		)
 		return result
 	}
 
@@ -304,6 +320,11 @@ func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource
 		result.isDestValid = true
 		result.isURLIgnored = true
 		result.ignoreReason = ignoreReason
+		span.LogFields(
+			log.Bool("isDestValid", result.isDestValid),
+			log.Bool("isURLIgnored", result.isURLIgnored),
+			log.String("ignoreReason", result.ignoreReason),
+		)
 		return result
 	}
 
@@ -323,6 +344,8 @@ func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource
 		result.isHTMLRedirect, result.htmlRedirectURL, result.htmlParseError = getMetaRefresh(resp)
 	}
 
+	span.LogFields(log.Object("result", result))
+
 	// TODO once the URL is cleaned, double-check the cleaned URL to see if it's a valid destination; if not, revert to non-cleaned version
 	// this could be done recursively here or by the outer function. This is necessary because "cleaning" a URL and removing params might
 	// break it so we need to revert to original.
@@ -330,13 +353,19 @@ func harvestResource(h *ContentHarvester, origURLtext string) *HarvestedResource
 	return result
 }
 
-func harvestResourceFromReferrer(h *ContentHarvester, original *HarvestedResource) *HarvestedResource {
+func harvestResourceFromReferrer(h *ContentHarvester, parentSpan opentracing.Span, original *HarvestedResource) *HarvestedResource {
+	span := h.observatory.Tracer.StartSpan("harvestResourceFromReferrer", opentracing.ChildOf(parentSpan.Context()))
+	defer span.Finish()
+	span.LogFields(log.Object("original", *original))
+
 	isHTMLRedirect, htmlRedirectURL := original.IsHTMLRedirect()
+	span.LogFields(log.Bool("isHTMLRedirect", isHTMLRedirect))
 	if !isHTMLRedirect {
 		return nil
 	}
+	span.LogFields(log.String("htmlRedirectURL", htmlRedirectURL))
 
-	result := harvestResource(h, htmlRedirectURL)
+	result := harvestResource(h, span, htmlRedirectURL)
 	result.origResource = original
 	return result
 }

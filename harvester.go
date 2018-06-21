@@ -9,7 +9,7 @@ import (
 	"text/template"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/opentracing/opentracing-go/log"
 	"mvdan.cc/xurls"
 )
 
@@ -31,7 +31,7 @@ type CleanDiscoveredResourceRule interface {
 
 // ContentHarvester discovers URLs (called "Resources" from the "R" in "URL")
 type ContentHarvester struct {
-	logger              *zap.Logger
+	observatory         *Observatory
 	discoverURLsRegEx   *regexp.Regexp
 	followHTMLRedirects bool
 	ignoreResourceRule  IgnoreDiscoveredResourceRule
@@ -119,9 +119,9 @@ func (r *HarvestedResources) Serialize(serializer HarvestedResourcesSerializer) 
 }
 
 // MakeContentHarvester prepares a content harvester
-func MakeContentHarvester(logger *zap.Logger, ignoreResourceRule IgnoreDiscoveredResourceRule, cleanResourceRule CleanDiscoveredResourceRule, followHTMLRedirects bool) *ContentHarvester {
+func MakeContentHarvester(observatory *Observatory, ignoreResourceRule IgnoreDiscoveredResourceRule, cleanResourceRule CleanDiscoveredResourceRule, followHTMLRedirects bool) *ContentHarvester {
 	result := new(ContentHarvester)
-	result.logger = logger
+	result.observatory = observatory
 	result.discoverURLsRegEx = xurls.Relaxed
 	result.ignoreResourceRule = ignoreResourceRule
 	result.cleanResourceRule = cleanResourceRule
@@ -158,6 +158,10 @@ func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Respon
 
 // HarvestResources discovers URLs within content and returns what was found
 func (h *ContentHarvester) HarvestResources(content string) *HarvestedResources {
+	span := h.observatory.Tracer.StartSpan("HarvestResources")
+	defer span.Finish()
+	span.LogFields(log.String("content", content))
+
 	result := new(HarvestedResources)
 	result.Content = content
 
@@ -169,9 +173,9 @@ func (h *ContentHarvester) HarvestResources(content string) *HarvestedResources 
 			continue
 		}
 
-		res := harvestResource(h, urlText)
+		res := harvestResource(h, span, urlText)
 		// check and see if we have an HTML content-based redirect via meta refresh (not HTTP)
-		referredTo := harvestResourceFromReferrer(h, res)
+		referredTo := harvestResourceFromReferrer(h, span, res)
 		if referredTo != nil && h.followHTMLRedirects {
 			// if we had a redirect, then that's the one we'll use
 			res = referredTo
