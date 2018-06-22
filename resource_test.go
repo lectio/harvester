@@ -10,6 +10,8 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/stretchr/testify/suite"
 )
 
@@ -20,11 +22,13 @@ type ResourceSuite struct {
 	harvested   *HarvestedResources
 	markdown    map[string]*strings.Builder
 	serializer  HarvestedResourcesSerializer
+	span        opentracing.Span
 }
 
 func (suite *ResourceSuite) SetupSuite() {
-	observatory := MakeTestObservatory("default", "Harvester Test Suite")
+	observatory := MakeProductionObservatory("default", "Harvester Test Suite")
 	suite.observatory = observatory
+	suite.span = observatory.StartTrace("ResourceSuite")
 	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)
 
 	tmpl, tmplErr := template.ParseFiles("serialize.md.tmpl")
@@ -61,11 +65,12 @@ func (suite *ResourceSuite) SetupSuite() {
 }
 
 func (suite *ResourceSuite) TearDownSuite() {
+	suite.span.Finish()
 	suite.observatory.Close()
 }
 
 func (suite *ResourceSuite) harvestSingleURLFromMockTweet(text string, msgAndArgs ...interface{}) *HarvestedResource {
-	suite.harvested = suite.ch.HarvestResources(fmt.Sprintf(text, msgAndArgs))
+	suite.harvested = suite.ch.HarvestResources(fmt.Sprintf(text, msgAndArgs), suite.span)
 	suite.Equal(len(suite.harvested.Resources), 1)
 	return suite.harvested.Resources[0]
 }
@@ -111,7 +116,7 @@ func (suite *ResourceSuite) TestResolvedURLRedirectedThroughHTMLProperly() {
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
 
 	// at this point we want to get the "new" (redirected) and test it
-	span := suite.observatory.Tracer.StartSpan("TestResolvedURLRedirectedThroughHTMLProperly")
+	span := suite.observatory.StartChildTrace("TestResolvedURLRedirectedThroughHTMLProperly", suite.span)
 	defer span.Finish()
 	redirectedHR := harvestResourceFromReferrer(suite.ch, span, hr)
 	suite.Equal(redirectedHR.ReferredByResource(), hr, "The referral resource should be the same as the original")

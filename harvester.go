@@ -9,6 +9,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/opentracing/opentracing-go/log"
 	"mvdan.cc/xurls"
 )
@@ -135,7 +137,7 @@ func (h *ContentHarvester) Close() {
 }
 
 // detectContentType will figure out what kind of destination content we're dealing with
-func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Response) *HarvestedResourceContent {
+func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Response, o *Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
 	result := new(HarvestedResourceContent)
 	h.contentEncountered = append(h.contentEncountered, result)
 	result.URL = url
@@ -152,13 +154,13 @@ func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Respon
 
 	// If we get to here it means that we need to download the content to inspect it.
 	// We download it first because it's possible we want to retain it for later use.
-	result.Downloaded = DownloadContent(url, resp)
+	result.Downloaded = DownloadContent(url, resp, o, parentSpan)
 	return result
 }
 
 // HarvestResources discovers URLs within content and returns what was found
-func (h *ContentHarvester) HarvestResources(content string) *HarvestedResources {
-	span := h.observatory.Tracer.StartSpan("HarvestResources")
+func (h *ContentHarvester) HarvestResources(content string, parentSpan opentracing.Span) *HarvestedResources {
+	span := h.observatory.StartChildTrace("HarvestResources", parentSpan)
 	defer span.Finish()
 	span.LogFields(log.String("content", content))
 

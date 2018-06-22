@@ -16,7 +16,7 @@ type ObserveeName string
 type ObservatoryName string
 
 type Observatory struct {
-	Tracer opentracing.Tracer
+	tracer opentracing.Tracer
 	config jaegercfg.Configuration
 	closer io.Closer
 }
@@ -25,6 +25,14 @@ func (o *Observatory) Close() {
 	if o.closer != nil {
 		o.closer.Close()
 	}
+}
+
+func (o *Observatory) StartTrace(subject string) opentracing.Span {
+	return o.tracer.StartSpan(subject)
+}
+
+func (o *Observatory) StartChildTrace(subject string, parent opentracing.Span) opentracing.Span {
+	return o.tracer.StartSpan(subject, opentracing.ChildOf(parent.Context()))
 }
 
 func MakeTestObservatory(observer ObservatoryName, observee ObserveeName) *Observatory {
@@ -57,7 +65,7 @@ func MakeTestObservatory(observer ObservatoryName, observee ObserveeName) *Obser
 	if err != nil {
 		log.Printf("Could not initialize jaeger tracer: %s", err.Error())
 	}
-	result.Tracer = tracer
+	result.tracer = tracer
 	result.closer = closer
 	return result
 }
@@ -83,7 +91,7 @@ func MakeProductionObservatory(observer ObservatoryName, observee ObserveeName) 
 	if err != nil {
 		log.Printf("Could not initialize jaeger tracer: %s", err.Error())
 	}
-	result.Tracer = tracer
+	result.tracer = tracer
 	result.closer = closer
 	return result
 }

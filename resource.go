@@ -35,7 +35,10 @@ func (dc *DownloadedContent) Delete() {
 
 // DownloadContent will download a url to a local file. It's efficient because it will
 // write as it downloads and not load the whole file into memory.
-func DownloadContent(url *url.URL, resp *http.Response) *DownloadedContent {
+func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSpan opentracing.Span) *DownloadedContent {
+	span := o.StartChildTrace("DownloadContent", parentSpan)
+	defer span.Finish()
+
 	destFile, err := ioutil.TempFile(os.TempDir(), "ContentHarvester-")
 
 	result := new(DownloadedContent)
@@ -191,7 +194,10 @@ func (r *HarvestedResource) ResourceContent() *HarvestedResourceContent {
 }
 
 // cleanResource checks to see if there are any parameters that should be removed (e.g. UTM_*)
-func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule) (bool, *url.URL) {
+func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o *Observatory, parentSpan opentracing.Span) (bool, *url.URL) {
+	span := o.StartChildTrace("cleanResource", parentSpan)
+	defer span.Finish()
+
 	if !rule.CleanDiscoveredResource(url) {
 		return false, nil
 	}
@@ -223,7 +229,10 @@ func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule) (bool, *url.U
 	return false, nil
 }
 
-func findMetaRefreshTagInHead(doc *html.Node) *html.Node {
+func findMetaRefreshTagInHead(doc *html.Node, o *Observatory, parentSpan opentracing.Span) *html.Node {
+	span := o.StartChildTrace("findMetaRefreshTagInHead", parentSpan)
+	defer span.Finish()
+
 	var metaTag *html.Node
 	var inHead bool
 	var f func(*html.Node)
@@ -248,14 +257,17 @@ func findMetaRefreshTagInHead(doc *html.Node) *html.Node {
 }
 
 // See for explanation: http://redirectdetective.com/redirection-types.html
-func getMetaRefresh(resp *http.Response) (bool, string, error) {
+func getMetaRefresh(resp *http.Response, o *Observatory, parentSpan opentracing.Span) (bool, string, error) {
+	span := o.StartChildTrace("getMetaRefresh", parentSpan)
+	defer span.Finish()
+
 	doc, parseError := html.Parse(resp.Body)
 	if parseError != nil {
 		return false, "", parseError
 	}
 	defer resp.Body.Close()
 
-	mn := findMetaRefreshTagInHead(doc)
+	mn := findMetaRefreshTagInHead(doc, o, parentSpan)
 	if mn == nil {
 		return false, "", nil
 	}
@@ -276,7 +288,7 @@ func getMetaRefresh(resp *http.Response) (bool, string, error) {
 }
 
 func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLtext string) *HarvestedResource {
-	span := h.observatory.Tracer.StartSpan("harvestResource", opentracing.ChildOf(parentSpan.Context()))
+	span := h.observatory.StartChildTrace("harvestResource", parentSpan)
 	defer span.Finish()
 	span.LogFields(log.String("origURLtext", origURLtext))
 
@@ -330,7 +342,7 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 
 	result.isURLIgnored = false
 	result.isDestValid = true
-	urlsParamsCleaned, cleanedURL := cleanResource(result.resolvedURL, h.cleanResourceRule)
+	urlsParamsCleaned, cleanedURL := cleanResource(result.resolvedURL, h.cleanResourceRule, h.observatory, span)
 	if urlsParamsCleaned {
 		result.cleanedURL = cleanedURL
 		result.finalURL = cleanedURL
@@ -339,9 +351,9 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 		result.isURLCleaned = false
 	}
 
-	result.resourceContent = h.detectResourceContent(result.finalURL, resp)
+	result.resourceContent = h.detectResourceContent(result.finalURL, resp, h.observatory, span)
 	if result.resourceContent.IsHTML() {
-		result.isHTMLRedirect, result.htmlRedirectURL, result.htmlParseError = getMetaRefresh(resp)
+		result.isHTMLRedirect, result.htmlRedirectURL, result.htmlParseError = getMetaRefresh(resp, h.observatory, span)
 	}
 
 	span.LogFields(log.Object("result", result))
@@ -354,16 +366,15 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 }
 
 func harvestResourceFromReferrer(h *ContentHarvester, parentSpan opentracing.Span, original *HarvestedResource) *HarvestedResource {
-	span := h.observatory.Tracer.StartSpan("harvestResourceFromReferrer", opentracing.ChildOf(parentSpan.Context()))
-	defer span.Finish()
-	span.LogFields(log.Object("original", *original))
-
 	isHTMLRedirect, htmlRedirectURL := original.IsHTMLRedirect()
-	span.LogFields(log.Bool("isHTMLRedirect", isHTMLRedirect))
 	if !isHTMLRedirect {
 		return nil
 	}
-	span.LogFields(log.String("htmlRedirectURL", htmlRedirectURL))
+	span := h.observatory.StartChildTrace("harvestResourceFromReferrer", parentSpan)
+	defer span.Finish()
+	span.LogFields(log.Object("original", *original),
+		log.Bool("isHTMLRedirect", isHTMLRedirect),
+		log.String("htmlRedirectURL", htmlRedirectURL))
 
 	result := harvestResource(h, span, htmlRedirectURL)
 	result.origResource = original
