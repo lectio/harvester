@@ -16,6 +16,10 @@ type Observatory struct {
 	closer io.Closer
 }
 
+func (o *Observatory) Tracer() opentracing.Tracer {
+	return o.tracer
+}
+
 func (o *Observatory) Close() {
 	if o.closer != nil {
 		o.closer.Close()
