@@ -26,7 +26,7 @@ type ResourceSuite struct {
 }
 
 func (suite *ResourceSuite) SetupSuite() {
-	observatory := MakeProductionObservatory("default", "Harvester Test Suite")
+	observatory := MakeObservatoryFromEnv()
 	suite.observatory = observatory
 	suite.span = observatory.StartTrace("ResourceSuite")
 	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)

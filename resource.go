@@ -13,6 +13,7 @@ import (
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
+	opentrext "github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
 	"golang.org/x/net/html"
 	filetype "gopkg.in/h2non/filetype.v1"
@@ -39,12 +40,15 @@ func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSp
 	span := o.StartChildTrace("DownloadContent", parentSpan)
 	defer span.Finish()
 
-	destFile, err := ioutil.TempFile(os.TempDir(), "ContentHarvester-")
+	destFile, err := ioutil.TempFile(os.TempDir(), "harvester-dl-")
+	span.LogFields(log.String("downloadedAsName", destFile.Name()))
 
 	result := new(DownloadedContent)
 	result.URL = url
 	if err != nil {
 		result.DownloadError = err
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(err))
 		return result
 	}
 
@@ -54,6 +58,8 @@ func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSp
 	_, err = io.Copy(destFile, resp.Body)
 	if err != nil {
 		result.DownloadError = err
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(err))
 		return result
 	}
 	destFile.Close()
@@ -62,6 +68,8 @@ func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSp
 	file, err := os.Open(result.DestPath)
 	if err != nil {
 		result.FileTypeError = err
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(err))
 		return result
 	}
 
@@ -78,6 +86,7 @@ func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSp
 		newPath := currentPath[0:len(currentPath)-len(currentExtension)] + "." + result.FileType.Extension
 		os.Rename(currentPath, newPath)
 		result.DestPath = newPath
+		span.LogFields(log.String("FinalDestName", newPath))
 	}
 
 	return result
@@ -309,6 +318,7 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 			log.Bool("isURLIgnored", result.isURLIgnored),
 			log.String("ignoreReason", result.ignoreReason),
 		)
+		opentrext.Error.Set(span, true)
 		return result
 	}
 
@@ -322,6 +332,8 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 			log.Bool("isURLIgnored", result.isURLIgnored),
 			log.String("ignoreReason", result.ignoreReason),
 		)
+		opentrext.Error.Set(span, true)
+		opentrext.HTTPStatusCode.Set(span, uint16(result.httpStatusCode))
 		return result
 	}
 
