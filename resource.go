@@ -214,6 +214,8 @@ func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o *Observator
 	// make a copy because we're planning on changing the URL params
 	cleanedURL, error := url.Parse(url.String())
 	if error != nil {
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(error))
 		return false, nil
 	}
 
@@ -272,6 +274,8 @@ func getMetaRefresh(resp *http.Response, o *Observatory, parentSpan opentracing.
 
 	doc, parseError := html.Parse(resp.Body)
 	if parseError != nil {
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(parseError))
 		return false, "", parseError
 	}
 	defer resp.Body.Close()

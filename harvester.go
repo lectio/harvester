@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	opentrext "github.com/opentracing/opentracing-go/ext"
 
 	"github.com/opentracing/opentracing-go/log"
 	"mvdan.cc/xurls"
@@ -145,6 +146,12 @@ func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Respon
 	if len(result.ContentType) > 0 {
 		result.MediaType, result.MediaTypeParams, result.MediaTypeError = mime.ParseMediaType(result.ContentType)
 		if result.MediaTypeError != nil {
+			span := o.StartChildTrace("detectResourceContent", parentSpan)
+			defer span.Finish()
+			opentrext.Error.Set(span, true)
+			span.LogFields(
+				log.String("unkown ContentType", result.ContentType),
+				log.Error(result.MediaTypeError))
 			return result
 		}
 		if result.IsHTML() {
