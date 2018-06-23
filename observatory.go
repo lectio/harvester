@@ -1,6 +1,7 @@
 package harvester
 
 import (
+	"context"
 	"io"
 	"log"
 
@@ -27,6 +28,17 @@ func (o *Observatory) StartTrace(subject string) opentracing.Span {
 
 func (o *Observatory) StartChildTrace(subject string, parent opentracing.Span) opentracing.Span {
 	return o.tracer.StartSpan(subject, opentracing.ChildOf(parent.Context()))
+}
+
+func (o *Observatory) StartTraceFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	var span opentracing.Span
+	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
+		opts = append(opts, opentracing.ChildOf(parentSpan.Context()))
+		span = o.tracer.StartSpan(operationName, opts...)
+	} else {
+		span = o.tracer.StartSpan(operationName, opts...)
+	}
+	return span, opentracing.ContextWithSpan(ctx, span)
 }
 
 func MakeObservatoryFromEnv() *Observatory {
