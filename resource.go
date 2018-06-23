@@ -321,6 +321,7 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 			log.Bool("isDestValid", result.isDestValid),
 			log.Bool("isURLIgnored", result.isURLIgnored),
 			log.String("ignoreReason", result.ignoreReason),
+			log.Error(err),
 		)
 		opentrext.Error.Set(span, true)
 		return result
