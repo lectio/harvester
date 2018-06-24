@@ -15,6 +15,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	opentrext "github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
+	observe "github.com/shah/observe-go"
 	"golang.org/x/net/html"
 	filetype "gopkg.in/h2non/filetype.v1"
 	"gopkg.in/h2non/filetype.v1/types"
@@ -36,7 +37,7 @@ func (dc *DownloadedContent) Delete() {
 
 // DownloadContent will download a url to a local file. It's efficient because it will
 // write as it downloads and not load the whole file into memory.
-func DownloadContent(url *url.URL, resp *http.Response, o *Observatory, parentSpan opentracing.Span) *DownloadedContent {
+func DownloadContent(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) *DownloadedContent {
 	span := o.StartChildTrace("DownloadContent", parentSpan)
 	defer span.Finish()
 
@@ -203,7 +204,7 @@ func (r *HarvestedResource) ResourceContent() *HarvestedResourceContent {
 }
 
 // cleanResource checks to see if there are any parameters that should be removed (e.g. UTM_*)
-func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o *Observatory, parentSpan opentracing.Span) (bool, *url.URL) {
+func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o observe.Observatory, parentSpan opentracing.Span) (bool, *url.URL) {
 	span := o.StartChildTrace("cleanResource", parentSpan)
 	defer span.Finish()
 
@@ -240,7 +241,7 @@ func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o *Observator
 	return false, nil
 }
 
-func findMetaRefreshTagInHead(doc *html.Node, o *Observatory, parentSpan opentracing.Span) *html.Node {
+func findMetaRefreshTagInHead(doc *html.Node, o observe.Observatory, parentSpan opentracing.Span) *html.Node {
 	span := o.StartChildTrace("findMetaRefreshTagInHead", parentSpan)
 	defer span.Finish()
 
@@ -268,7 +269,7 @@ func findMetaRefreshTagInHead(doc *html.Node, o *Observatory, parentSpan opentra
 }
 
 // See for explanation: http://redirectdetective.com/redirection-types.html
-func getMetaRefresh(resp *http.Response, o *Observatory, parentSpan opentracing.Span) (bool, string, error) {
+func getMetaRefresh(resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) (bool, string, error) {
 	span := o.StartChildTrace("getMetaRefresh", parentSpan)
 	defer span.Finish()
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	opentrext "github.com/opentracing/opentracing-go/ext"
+	observe "github.com/shah/observe-go"
 
 	"github.com/opentracing/opentracing-go/log"
 	"mvdan.cc/xurls"
@@ -34,7 +35,7 @@ type CleanDiscoveredResourceRule interface {
 
 // ContentHarvester discovers URLs (called "Resources" from the "R" in "URL")
 type ContentHarvester struct {
-	observatory         *Observatory
+	observatory         observe.Observatory
 	discoverURLsRegEx   *regexp.Regexp
 	followHTMLRedirects bool
 	ignoreResourceRule  IgnoreDiscoveredResourceRule
@@ -122,7 +123,7 @@ func (r *HarvestedResources) Serialize(serializer HarvestedResourcesSerializer) 
 }
 
 // MakeContentHarvester prepares a content harvester
-func MakeContentHarvester(observatory *Observatory, ignoreResourceRule IgnoreDiscoveredResourceRule, cleanResourceRule CleanDiscoveredResourceRule, followHTMLRedirects bool) *ContentHarvester {
+func MakeContentHarvester(observatory observe.Observatory, ignoreResourceRule IgnoreDiscoveredResourceRule, cleanResourceRule CleanDiscoveredResourceRule, followHTMLRedirects bool) *ContentHarvester {
 	result := new(ContentHarvester)
 	result.observatory = observatory
 	result.discoverURLsRegEx = xurls.Relaxed
@@ -138,7 +139,7 @@ func (h *ContentHarvester) Close() {
 }
 
 // detectContentType will figure out what kind of destination content we're dealing with
-func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Response, o *Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
+func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
 	result := new(HarvestedResourceContent)
 	h.contentEncountered = append(h.contentEncountered, result)
 	result.URL = url

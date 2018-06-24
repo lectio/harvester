@@ -11,13 +11,14 @@ import (
 	"text/template"
 
 	"github.com/opentracing/opentracing-go"
+	observe "github.com/shah/observe-go"
 
 	"github.com/stretchr/testify/suite"
 )
 
 type ResourceSuite struct {
 	suite.Suite
-	observatory *Observatory
+	observatory observe.Observatory
 	ch          *ContentHarvester
 	harvested   *HarvestedResources
 	markdown    map[string]*strings.Builder
@@ -26,7 +27,7 @@ type ResourceSuite struct {
 }
 
 func (suite *ResourceSuite) SetupSuite() {
-	observatory := MakeObservatoryFromEnv()
+	observatory := observe.MakeObservatoryFromEnv()
 	suite.observatory = observatory
 	suite.span = observatory.StartTrace("ResourceSuite")
 	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)

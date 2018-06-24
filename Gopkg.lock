@@ -66,6 +66,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/shah/observe-go"
+  packages = ["."]
+  revision = "fb180091d841f1c5df8ca9ce0fa5bc2b37aaab18"
+
+[[projects]]
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -112,7 +118,7 @@
     "html",
     "html/atom"
   ]
-  revision = "db08ff08e8622530d9ed3a0e8ac279f6d4c02196"
+  revision = "afe8f62b1d6bbd81f31868121a50b06d8188e1f9"
 
 [[projects]]
   name = "gopkg.in/h2non/filetype.v1"
@@ -133,6 +139,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "17f25b215d0fbf986c069f00a3659f46691cb9962159e81ed4b2906fe799ccfd"
+  inputs-digest = "8e78eba0c46cee55931497f4d4c2bb02868cef501882e20886b266a63121ad8f"
   solver-name = "gps-cdcl"
   solver-version = 1
