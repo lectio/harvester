@@ -4,6 +4,18 @@ MAKEFLAGS := --silent
 ## Default is to run this in development mode for testing the website
 default: test
 
+## Setup this directory for development use (pull latest code, ensure dependencies are updated)
+setup-devl: pull dep
+
+## Make sure we have the latest code
+pull: 
+	git pull
+
+## Update all dependencies -- we've removed "[prune] unused-packages = true" from Gopkg.toml
+dep:
+	dep ensure
+	dep ensure -update
+
 .ONESHELL:
 ## Run test suite
 test:
