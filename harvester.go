@@ -151,7 +151,7 @@ func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Respon
 			defer span.Finish()
 			opentrext.Error.Set(span, true)
 			span.LogFields(
-				log.String("unkown ContentType", result.ContentType),
+				log.String("unknown ContentType", result.ContentType),
 				log.Error(result.MediaTypeError))
 			return result
 		}
