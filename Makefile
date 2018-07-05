@@ -2,6 +2,8 @@ SHELL := /bin/bash
 MAKEFLAGS := --silent
 REPORT_PATH := tmp/report
 
+## TODO Check out https://github.com/genuinetools/img/blob/master/Makefile to borrow some targets
+
 ## Default is to run this in development mode for testing the website
 default: test
 
