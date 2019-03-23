@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
+	filetype "github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 	opentracing "github.com/opentracing/opentracing-go"
 	opentrext "github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
 	observe "github.com/shah/observe-go"
 	"golang.org/x/net/html"
-	filetype "gopkg.in/h2non/filetype.v1"
-	"gopkg.in/h2non/filetype.v1/types"
 )
 
 // DownloadedContent manages any content that was downloaded for further inspection

@@ -27,6 +27,11 @@ type ResourceSuite struct {
 }
 
 func (suite *ResourceSuite) SetupSuite() {
+	_, set := os.LookupEnv("JAEGER_SERVICE_NAME")
+	if !set {
+		os.Setenv("JAEGER_SERVICE_NAME", "Lectio Harvester Test Suite")
+	}
+
 	observatory := observe.MakeObservatoryFromEnv()
 	suite.observatory = observatory
 	suite.span = observatory.StartTrace("ResourceSuite")
@@ -70,8 +75,8 @@ func (suite *ResourceSuite) TearDownSuite() {
 	suite.observatory.Close()
 }
 
-func (suite *ResourceSuite) harvestSingleURLFromMockTweet(text string, msgAndArgs ...interface{}) *HarvestedResource {
-	suite.harvested = suite.ch.HarvestResources(fmt.Sprintf(text, msgAndArgs), suite.span)
+func (suite *ResourceSuite) harvestSingleURLFromMockTweet(text string, msgAndArgs0 string, msgAndArgs ...interface{}) *HarvestedResource {
+	suite.harvested = suite.ch.HarvestResources(fmt.Sprintf(text, msgAndArgs0, msgAndArgs), suite.span)
 	suite.Equal(len(suite.harvested.Resources), 1)
 	return suite.harvested.Resources[0]
 }
@@ -105,7 +110,7 @@ func (suite *ResourceSuite) TestIgnoreRules() {
 }
 
 func (suite *ResourceSuite) TestResolvedURLRedirectedThroughHTMLProperly() {
-	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to resolve via <meta http-equiv='refresh' content='delay;url='>, with utm_* params", "https://t.co/4dcdNEQYHa")
+	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to resolve via <meta http-equiv='refresh' content='delay;url='>, with utm_* params", "http://bit.ly/lectio_harvester_resource_test03")
 	isURLValid, isDestValid := hr.IsValid()
 	suite.True(isURLValid, "URL should be formatted validly")
 	suite.True(isDestValid, "URL should have valid destination")
@@ -113,7 +118,7 @@ func (suite *ResourceSuite) TestResolvedURLRedirectedThroughHTMLProperly() {
 	suite.False(isIgnored, "URL should not be ignored")
 	isHTMLRedirect, htmlRedirectURLText := hr.IsHTMLRedirect()
 	suite.True(isHTMLRedirect, "There should have been an HTML redirect requested through <meta http-equiv='refresh' content='delay;url='>")
-	suite.Equal(htmlRedirectURLText, "https://www.sopranodesign.com/secure-healthcare-messaging/?utm_source=twitter&utm_medium=socialmedia&utm_campaign=soprano")
+	suite.Equal(htmlRedirectURLText, "https://www.netspective.com/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
 
 	// at this point we want to get the "new" (redirected) and test it
@@ -129,14 +134,14 @@ func (suite *ResourceSuite) TestResolvedURLRedirectedThroughHTMLProperly() {
 	isCleaned, _ := redirectedHR.IsCleaned()
 	suite.True(isCleaned, "Redirected URL should be 'cleaned'")
 	finalURL, resolvedURL, cleanedURL := redirectedHR.GetURLs()
-	suite.Equal(resolvedURL.String(), "https://www.sopranodesign.com/secure-healthcare-messaging/?utm_source=twitter&utm_medium=socialmedia&utm_campaign=soprano")
-	suite.Equal(cleanedURL.String(), "https://www.sopranodesign.com/secure-healthcare-messaging/")
+	suite.Equal(resolvedURL.String(), "https://www.netspective.com/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
+	suite.Equal(cleanedURL.String(), "https://www.netspective.com/")
 	suite.Equal(finalURL.String(), cleanedURL.String(), "finalURL should be same as cleanedURL")
 	suite.NotNil(redirectedHR.ResourceContent(), "Content should be available")
 }
 
 func (suite *ResourceSuite) TestResolvedURLCleaned() {
-	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "https://t.co/csWpQq5mbn")
+	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "http://bit.ly/lectio_harvester_resource_test01")
 	isURLValid, isDestValid := hr.IsValid()
 	suite.True(isURLValid, "URL should be formatted validly")
 	suite.True(isDestValid, "URL should have valid destination")
@@ -145,14 +150,14 @@ func (suite *ResourceSuite) TestResolvedURLCleaned() {
 	isCleaned, _ := hr.IsCleaned()
 	suite.True(isCleaned, "URL should be 'cleaned'")
 	finalURL, resolvedURL, cleanedURL := hr.GetURLs()
-	suite.Equal(resolvedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372?utm_campaign=crowdfire&utm_content=crowdfire&utm_medium=social&utm_source=twitter")
-	suite.Equal(cleanedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372")
+	suite.Equal(resolvedURL.String(), "https://www.netspective.com/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
+	suite.Equal(cleanedURL.String(), "https://www.netspective.com/")
 	suite.Equal(finalURL.String(), cleanedURL.String(), "finalURL should be same as cleanedURL")
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
 }
 
 func (suite *ResourceSuite) TestResolvedURLCleanedKeys() {
-	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "https://t.co/csWpQq5mbn")
+	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "http://bit.ly/lectio_harvester_resource_test02")
 	isURLValid, isDestValid := hr.IsValid()
 	suite.True(isURLValid, "URL should be formatted validly")
 	suite.True(isDestValid, "URL should have valid destination")
@@ -161,8 +166,8 @@ func (suite *ResourceSuite) TestResolvedURLCleanedKeys() {
 	isCleaned, _ := hr.IsCleaned()
 	suite.True(isCleaned, "URL should be 'cleaned'")
 	finalURL, resolvedURL, cleanedURL := hr.GetURLs()
-	suite.Equal(resolvedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372?utm_campaign=crowdfire&utm_content=crowdfire&utm_medium=social&utm_source=twitter")
-	suite.Equal(cleanedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372")
+	suite.Equal(resolvedURL.String(), "https://www.netspective.com/solutions/opsfolio/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
+	suite.Equal(cleanedURL.String(), "https://www.netspective.com/solutions/opsfolio/")
 	suite.Equal(finalURL.String(), cleanedURL.String(), "finalURL should be same as cleanedURL")
 
 	var testRandom uint32
@@ -174,12 +179,12 @@ func (suite *ResourceSuite) TestResolvedURLCleanedKeys() {
 	})
 	suite.Equal(testTry, 0)
 	suite.Equal(keys.UniqueID(), testRandom)
-	suite.Equal(keys.Slug(), "chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony")
+	suite.Equal(keys.Slug(), "hipaa-compliant-cybersecurity-andamp-risk-assessment-software-netspective-opsfolio")
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
 }
 
 func (suite *ResourceSuite) TestResolvedURLCleanedSerializer() {
-	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "https://t.co/csWpQq5mbn")
+	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "http://bit.ly/lectio_harvester_resource_test02")
 	isURLValid, isDestValid := hr.IsValid()
 	suite.True(isURLValid, "URL should be formatted validly")
 	suite.True(isDestValid, "URL should have valid destination")
@@ -188,8 +193,8 @@ func (suite *ResourceSuite) TestResolvedURLCleanedSerializer() {
 	isCleaned, _ := hr.IsCleaned()
 	suite.True(isCleaned, "URL should be 'cleaned'")
 	finalURL, resolvedURL, cleanedURL := hr.GetURLs()
-	suite.Equal(resolvedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372?utm_campaign=crowdfire&utm_content=crowdfire&utm_medium=social&utm_source=twitter")
-	suite.Equal(cleanedURL.String(), "https://www.washingtonexaminer.com/chris-matthews-trump-russia-collusion-theory-came-apart-with-comey-testimony/article/2625372")
+	suite.Equal(resolvedURL.String(), "https://www.netspective.com/solutions/opsfolio/?utm_source=lectio_harvester_resource_test.go&utm_medium=go.TestSuite&utm_campaign=harvester.ResourceSuite")
+	suite.Equal(cleanedURL.String(), "https://www.netspective.com/solutions/opsfolio/")
 	suite.Equal(finalURL.String(), cleanedURL.String(), "finalURL should be same as cleanedURL")
 
 	suite.NotNil(hr.ResourceContent(), "Content should be available")
@@ -211,7 +216,7 @@ func (suite *ResourceSuite) TestResolvedURLNotCleaned() {
 	isCleaned, _ := hr.IsCleaned()
 	suite.False(isCleaned, "URL should not have been 'cleaned'")
 	finalURL, resolvedURL, cleanedURL := hr.GetURLs()
-	suite.Equal(resolvedURL.String(), "http://www.foxnews.com/lifestyle/2018/04/25/photo-donald-trump-look-alike-in-spain-goes-viral.html")
+	suite.Equal(resolvedURL.String(), "https://www.foxnews.com/lifestyle/photo-of-donald-trump-look-alike-in-spain-goes-viral")
 	suite.Equal(finalURL.String(), resolvedURL.String(), "finalURL should be same as resolvedURL")
 	suite.Nil(cleanedURL, "cleanedURL should be empty")
 
