@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -96,6 +97,15 @@ func (suite *ResourceSuite) TestInvalidDestinationURLs() {
 	suite.False(isDestValid, "URL should have invalid destination")
 	suite.Equal(hr.httpStatusCode, 404)
 	suite.Nil(hr.ResourceContent(), "No content should be available")
+}
+
+func (suite *ResourceSuite) TestSimplifiedHostnames() {
+	url, _ := url.Parse("https://www.netspective.com")
+	suite.Equal("netspective.com", GetSimplifiedHostname(url))
+	suite.Equal("netspective", GetSimplifiedHostnameWithoutTLD(url))
+	url, _ = url.Parse("https://news.healthcareguys.com")
+	suite.Equal("news.healthcareguys.com", GetSimplifiedHostname(url))
+	suite.Equal("news.healthcareguys", GetSimplifiedHostnameWithoutTLD(url))
 }
 
 func (suite *ResourceSuite) TestIgnoreRules() {
