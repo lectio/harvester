@@ -96,33 +96,33 @@ func DownloadContent(url *url.URL, resp *http.Response, o observe.Observatory, p
 
 // HarvestedResourceContent manages the kind of content was inspected
 type HarvestedResourceContent struct {
-	URL                          *url.URL
-	ContentType                  string
-	MediaType                    string
-	MediaTypeParams              map[string]string
-	MediaTypeError               error
-	HTMLParseError               error
-	IsHTMLRedirect               bool
-	MetaRefreshTagContentURLText string            // the value after url= in something like <meta http-equiv='refresh' content='delay;url='>
-	MetaPropertyTags             map[string]string // something like <meta property="og:site_name" content="Netspective" /> or <meta name="twitter:title" content="text" />
-	Downloaded                   *DownloadedContent
+	url                          *url.URL
+	contentType                  string
+	mediaType                    string
+	mediaTypeParams              map[string]string
+	mediaTypeError               error
+	htmlParseError               error
+	isHTMLRedirect               bool
+	metaRefreshTagContentURLText string            // if IsHTMLRedirect is true, then this is the value after url= in something like <meta http-equiv='refresh' content='delay;url='>
+	metaPropertyTags             map[string]string // if IsHTML() is true, a collection of all meta data like <meta property="og:site_name" content="Netspective" /> or <meta name="twitter:title" content="text" />
+	downloaded                   *DownloadedContent
 }
 
 // DetectHarvestedResourceContent will figure out what kind of destination content we're dealing with
 func DetectHarvestedResourceContent(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
 	result := new(HarvestedResourceContent)
-	result.MetaPropertyTags = make(map[string]string)
-	result.URL = url
-	result.ContentType = resp.Header.Get("Content-Type")
-	if len(result.ContentType) > 0 {
-		result.MediaType, result.MediaTypeParams, result.MediaTypeError = mime.ParseMediaType(result.ContentType)
-		if result.MediaTypeError != nil {
+	result.metaPropertyTags = make(map[string]string)
+	result.url = url
+	result.contentType = resp.Header.Get("Content-Type")
+	if len(result.contentType) > 0 {
+		result.mediaType, result.mediaTypeParams, result.mediaTypeError = mime.ParseMediaType(result.contentType)
+		if result.mediaTypeError != nil {
 			span := o.StartChildTrace("detectResourceContent", parentSpan)
 			defer span.Finish()
 			opentrext.Error.Set(span, true)
 			span.LogFields(
-				log.String("unknown ContentType", result.ContentType),
-				log.Error(result.MediaTypeError))
+				log.String("unknown ContentType", result.contentType),
+				log.Error(result.mediaTypeError))
 			return result
 		}
 		if result.IsHTML() {
@@ -133,9 +133,13 @@ func DetectHarvestedResourceContent(url *url.URL, resp *http.Response, o observe
 
 	// If we get to here it means that we need to download the content to inspect it.
 	// We download it first because it's possible we want to retain it for later use.
-	result.Downloaded = DownloadContent(url, resp, o, parentSpan)
+	result.downloaded = DownloadContent(url, resp, o, parentSpan)
 	return result
 }
+
+// metaRefreshContentRegEx is used to match the 'content' attribute in a tag like this:
+//   <meta http-equiv="refresh" content="2;url=https://www.google.com">
+var metaRefreshContentRegEx = regexp.MustCompile(`^(\d?)\s?;\s?url=(.*)$`)
 
 func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) error {
 	span := o.StartChildTrace("getPageMetaData", parentSpan)
@@ -145,7 +149,7 @@ func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Re
 	if parseError != nil {
 		opentrext.Error.Set(span, true)
 		span.LogFields(log.Error(parseError))
-		c.HTMLParseError = parseError
+		c.htmlParseError = parseError
 		return parseError
 	}
 	defer resp.Body.Close()
@@ -167,8 +171,8 @@ func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Re
 								// the first part is the entire match
 								// the second and third parts are the delay and URL
 								// See for explanation: http://redirectdetective.com/redirection-types.html
-								c.IsHTMLRedirect = true
-								c.MetaRefreshTagContentURLText = parts[2]
+								c.isHTMLRedirect = true
+								c.metaRefreshTagContentURLText = parts[2]
 							}
 						}
 					}
@@ -177,7 +181,7 @@ func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Re
 					propertyName := attr.Val
 					for _, attr := range n.Attr {
 						if strings.EqualFold(attr.Key, "content") {
-							c.MetaPropertyTags[propertyName] = attr.Val
+							c.metaPropertyTags[propertyName] = attr.Val
 						}
 					}
 				}
@@ -193,15 +197,15 @@ func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Re
 
 // IsValid returns true if this there are no errors
 func (c HarvestedResourceContent) IsValid() bool {
-	if c.MediaTypeError != nil {
+	if c.mediaTypeError != nil {
 		return false
 	}
 
-	if c.Downloaded != nil {
-		if c.Downloaded.DownloadError != nil {
+	if c.downloaded != nil {
+		if c.downloaded.DownloadError != nil {
 			return false
 		}
-		if c.Downloaded.FileTypeError != nil {
+		if c.downloaded.FileTypeError != nil {
 			return false
 		}
 	}
@@ -211,36 +215,38 @@ func (c HarvestedResourceContent) IsValid() bool {
 
 // IsHTML returns true if this is HTML content
 func (c HarvestedResourceContent) IsHTML() bool {
-	return c.MediaType == "text/html"
+	return c.mediaType == "text/html"
 }
 
 // GetOpenGraphMetaTag returns the value and true if og:key was found
 func (c HarvestedResourceContent) GetOpenGraphMetaTag(key string) (string, bool) {
-	result, ok := c.MetaPropertyTags["og:"+key]
+	result, ok := c.metaPropertyTags["og:"+key]
 	return result, ok
 }
 
 // GetTwitterMetaTag returns the value and true if og:key was found
 func (c HarvestedResourceContent) GetTwitterMetaTag(key string) (string, bool) {
-	result, ok := c.MetaPropertyTags["twitter:"+key]
+	result, ok := c.metaPropertyTags["twitter:"+key]
 	return result, ok
 }
 
 // WasDownloaded returns true if content was downloaded for inspection
 func (c HarvestedResourceContent) WasDownloaded() bool {
-	return c.Downloaded != nil
+	return c.downloaded != nil
 }
 
-// metaRefreshContentRegEx is used to match the 'content' attribute in a tag like this:
-//   <meta http-equiv="refresh" content="2;url=https://www.google.com">
-var metaRefreshContentRegEx = regexp.MustCompile(`^(\d?)\s?;\s?url=(.*)$`)
+// IsHTMLRedirect returns true if redirect was requested through via <meta http-equiv='refresh' content='delay;url='>
+// For an explanation, please see http://redirectdetective.com/redirection-types.html
+func (c HarvestedResourceContent) IsHTMLRedirect() (bool, string) {
+	return c.isHTMLRedirect, c.metaRefreshTagContentURLText
+}
 
 // HarvestedResource tracks a single URL that was discovered in content.
 // Discovered URLs are validated, follow their redirects, and may have
 // query parameters "cleaned" (if instructed).
 type HarvestedResource struct {
 	// TODO consider adding source information (e.g. tweet, e-mail, etc.) and embed style (e.g. text, HTML <a> tag, etc.)
-	harvestedDate   time.Time
+	harvestedOn     time.Time
 	origURLtext     string
 	origResource    *HarvestedResource
 	isURLValid      bool
@@ -294,7 +300,7 @@ func (r *HarvestedResource) GetURLs() (*url.URL, *url.URL, *url.URL) {
 func (r *HarvestedResource) IsHTMLRedirect() (bool, string) {
 	content := r.resourceContent
 	if content != nil {
-		return r.resourceContent.IsHTMLRedirect, r.resourceContent.MetaRefreshTagContentURLText
+		return content.IsHTMLRedirect()
 	} else {
 		return false, ""
 	}
@@ -350,7 +356,7 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 
 	result := new(HarvestedResource)
 	result.origURLtext = origURLtext
-	result.harvestedDate = time.Now()
+	result.harvestedOn = time.Now()
 
 	// Use the standard Go HTTP library method to retrieve the content; the
 	// default will automatically follow redirects (e.g. HTTP redirects)

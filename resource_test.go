@@ -36,7 +36,7 @@ func (suite *ResourceSuite) SetupSuite() {
 	observatory := observe.MakeObservatoryFromEnv()
 	suite.observatory = observatory
 	suite.span = observatory.StartTrace("ResourceSuite")
-	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)
+	suite.ch = MakeContentHarvester(suite.observatory, DefaultIgnoreURLsRegExList, DefaultCleanURLsRegExList, false)
 
 	tmpl, tmplErr := template.ParseFiles("serialize.md.tmpl")
 	if tmplErr != nil {
@@ -273,14 +273,14 @@ func (suite *ResourceSuite) TestResolvedDocumentURLNotCleaned() {
 	suite.NotNil(content, "The destination content should be available")
 	suite.True(content.IsValid(), "The destination content should be valid")
 	suite.True(content.WasDownloaded(), "Because the destination wasn't HTML, it should have been downloaded")
-	suite.Equal(content.Downloaded.FileType.Extension, "pdf")
+	suite.Equal(content.downloaded.FileType.Extension, "pdf")
 
 	fileExists := false
-	if _, err := os.Stat(content.Downloaded.DestPath); err == nil {
+	if _, err := os.Stat(content.downloaded.DestPath); err == nil {
 		fileExists = true
 	}
-	suite.True(fileExists, "File %s should exist", content.Downloaded.DestPath)
-	suite.Equal(path.Ext(content.Downloaded.DestPath), ".pdf", "File's extension should be .pdf")
+	suite.True(fileExists, "File %s should exist", content.downloaded.DestPath)
+	suite.Equal(path.Ext(content.downloaded.DestPath), ".pdf", "File's extension should be .pdf")
 }
 
 func TestSuite(t *testing.T) {

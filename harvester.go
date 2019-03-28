@@ -105,7 +105,7 @@ func (r *HarvestedResources) Serialize(serializer HarvestedResourcesSerializer) 
 		}{
 			r.Content,
 			hr,
-			hr.harvestedDate,
+			hr.harvestedOn,
 			isCleaned,
 			finalURL.String(),
 			resolvedURL.String(),
