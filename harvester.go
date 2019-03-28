@@ -2,7 +2,6 @@ package harvester
 
 import (
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	opentrext "github.com/opentracing/opentracing-go/ext"
 	observe "github.com/shah/observe-go"
 
 	"github.com/opentracing/opentracing-go/log"
@@ -140,29 +138,8 @@ func (h *ContentHarvester) Close() {
 
 // detectContentType will figure out what kind of destination content we're dealing with
 func (h *ContentHarvester) detectResourceContent(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
-	result := new(HarvestedResourceContent)
+	result := DetectHarvestedResourceContent(url, resp, o, parentSpan)
 	h.contentEncountered = append(h.contentEncountered, result)
-	result.URL = url
-	result.ContentType = resp.Header.Get("Content-Type")
-	if len(result.ContentType) > 0 {
-		result.MediaType, result.MediaTypeParams, result.MediaTypeError = mime.ParseMediaType(result.ContentType)
-		if result.MediaTypeError != nil {
-			span := o.StartChildTrace("detectResourceContent", parentSpan)
-			defer span.Finish()
-			opentrext.Error.Set(span, true)
-			span.LogFields(
-				log.String("unknown ContentType", result.ContentType),
-				log.Error(result.MediaTypeError))
-			return result
-		}
-		if result.IsHTML() {
-			return result
-		}
-	}
-
-	// If we get to here it means that we need to download the content to inspect it.
-	// We download it first because it's possible we want to retain it for later use.
-	result.Downloaded = DownloadContent(url, resp, o, parentSpan)
 	return result
 }
 

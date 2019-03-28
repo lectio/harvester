@@ -108,6 +108,24 @@ func (suite *ResourceSuite) TestSimplifiedHostnames() {
 	suite.Equal("news.healthcareguys", GetSimplifiedHostnameWithoutTLD(url))
 }
 
+func (suite *ResourceSuite) TestOpenGraphMetaTags() {
+	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore, with utm_* params", "http://bit.ly/lectio_harvester_resource_test01")
+	isURLValid, isDestValid := hr.IsValid()
+	suite.True(isURLValid, "URL should be formatted validly")
+	suite.True(isDestValid, "URL should have valid destination")
+	suite.NotNil(hr.ResourceContent(), "Content should be available")
+
+	content := hr.ResourceContent()
+	value, _ := content.GetOpenGraphMetaTag("site_name")
+	suite.Equal(value, "Netspective")
+
+	value, _ = content.GetOpenGraphMetaTag("title")
+	suite.Equal(value, "Safety, privacy, and security focused technology consulting")
+
+	value, _ = content.GetOpenGraphMetaTag("description")
+	suite.Equal(value, "Software, technology, and management consulting focused on firms im pacted by FDA, ONC, NIST or other safety, privacy, and security regulations")
+}
+
 func (suite *ResourceSuite) TestIgnoreRules() {
 	hr := suite.harvestSingleURLFromMockTweet("Test a good URL %s which will redirect to a URL we want to ignore", "https://t.co/xNzrxkHE1u")
 	isURLValid, isDestValid := hr.IsValid()

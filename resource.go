@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,16 +96,103 @@ func DownloadContent(url *url.URL, resp *http.Response, o observe.Observatory, p
 
 // HarvestedResourceContent manages the kind of content was inspected
 type HarvestedResourceContent struct {
-	URL             *url.URL
-	ContentType     string
-	MediaType       string
-	MediaTypeParams map[string]string
-	MediaTypeError  error
-	Downloaded      *DownloadedContent
+	URL                          *url.URL
+	ContentType                  string
+	MediaType                    string
+	MediaTypeParams              map[string]string
+	MediaTypeError               error
+	HTMLParseError               error
+	IsHTMLRedirect               bool
+	MetaRefreshTagContentURLText string            // the value after url= in something like <meta http-equiv='refresh' content='delay;url='>
+	MetaPropertyTags             map[string]string // something like <meta property="og:site_name" content="Netspective" /> or <meta name="twitter:title" content="text" />
+	Downloaded                   *DownloadedContent
+}
+
+// DetectHarvestedResourceContent will figure out what kind of destination content we're dealing with
+func DetectHarvestedResourceContent(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) *HarvestedResourceContent {
+	result := new(HarvestedResourceContent)
+	result.MetaPropertyTags = make(map[string]string)
+	result.URL = url
+	result.ContentType = resp.Header.Get("Content-Type")
+	if len(result.ContentType) > 0 {
+		result.MediaType, result.MediaTypeParams, result.MediaTypeError = mime.ParseMediaType(result.ContentType)
+		if result.MediaTypeError != nil {
+			span := o.StartChildTrace("detectResourceContent", parentSpan)
+			defer span.Finish()
+			opentrext.Error.Set(span, true)
+			span.LogFields(
+				log.String("unknown ContentType", result.ContentType),
+				log.Error(result.MediaTypeError))
+			return result
+		}
+		if result.IsHTML() {
+			result.parsePageMetaData(url, resp, o, parentSpan)
+			return result
+		}
+	}
+
+	// If we get to here it means that we need to download the content to inspect it.
+	// We download it first because it's possible we want to retain it for later use.
+	result.Downloaded = DownloadContent(url, resp, o, parentSpan)
+	return result
+}
+
+func (c *HarvestedResourceContent) parsePageMetaData(url *url.URL, resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) error {
+	span := o.StartChildTrace("getPageMetaData", parentSpan)
+	defer span.Finish()
+
+	doc, parseError := html.Parse(resp.Body)
+	if parseError != nil {
+		opentrext.Error.Set(span, true)
+		span.LogFields(log.Error(parseError))
+		c.HTMLParseError = parseError
+		return parseError
+	}
+	defer resp.Body.Close()
+
+	var inHead bool
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "head") {
+			inHead = true
+		}
+		if inHead && n.Type == html.ElementNode && strings.EqualFold(n.Data, "meta") {
+			for _, attr := range n.Attr {
+				if strings.EqualFold(attr.Key, "http-equiv") && strings.EqualFold(strings.TrimSpace(attr.Val), "refresh") {
+					for _, attr := range n.Attr {
+						if strings.EqualFold(attr.Key, "content") {
+							contentValue := strings.TrimSpace(attr.Val)
+							parts := metaRefreshContentRegEx.FindStringSubmatch(contentValue)
+							if parts != nil && len(parts) == 3 {
+								// the first part is the entire match
+								// the second and third parts are the delay and URL
+								// See for explanation: http://redirectdetective.com/redirection-types.html
+								c.IsHTMLRedirect = true
+								c.MetaRefreshTagContentURLText = parts[2]
+							}
+						}
+					}
+				}
+				if strings.EqualFold(attr.Key, "property") || strings.EqualFold(attr.Key, "name") {
+					propertyName := attr.Val
+					for _, attr := range n.Attr {
+						if strings.EqualFold(attr.Key, "content") {
+							c.MetaPropertyTags[propertyName] = attr.Val
+						}
+					}
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+	return nil
 }
 
 // IsValid returns true if this there are no errors
-func (c *HarvestedResourceContent) IsValid() bool {
+func (c HarvestedResourceContent) IsValid() bool {
 	if c.MediaTypeError != nil {
 		return false
 	}
@@ -122,12 +210,24 @@ func (c *HarvestedResourceContent) IsValid() bool {
 }
 
 // IsHTML returns true if this is HTML content
-func (c *HarvestedResourceContent) IsHTML() bool {
+func (c HarvestedResourceContent) IsHTML() bool {
 	return c.MediaType == "text/html"
 }
 
+// GetOpenGraphMetaTag returns the value and true if og:key was found
+func (c HarvestedResourceContent) GetOpenGraphMetaTag(key string) (string, bool) {
+	result, ok := c.MetaPropertyTags["og:"+key]
+	return result, ok
+}
+
+// GetTwitterMetaTag returns the value and true if og:key was found
+func (c HarvestedResourceContent) GetTwitterMetaTag(key string) (string, bool) {
+	result, ok := c.MetaPropertyTags["twitter:"+key]
+	return result, ok
+}
+
 // WasDownloaded returns true if content was downloaded for inspection
-func (c *HarvestedResourceContent) WasDownloaded() bool {
+func (c HarvestedResourceContent) WasDownloaded() bool {
 	return c.Downloaded != nil
 }
 
@@ -150,9 +250,6 @@ type HarvestedResource struct {
 	ignoreReason    string
 	isURLCleaned    bool
 	isURLAttachment bool
-	isHTMLRedirect  bool
-	htmlRedirectURL string
-	htmlParseError  error
 	resolvedURL     *url.URL
 	cleanedURL      *url.URL
 	finalURL        *url.URL
@@ -195,7 +292,12 @@ func (r *HarvestedResource) GetURLs() (*url.URL, *url.URL, *url.URL) {
 // IsHTMLRedirect returns true if redirect was requested through via <meta http-equiv='refresh' content='delay;url='>
 // For an explanation, please see http://redirectdetective.com/redirection-types.html
 func (r *HarvestedResource) IsHTMLRedirect() (bool, string) {
-	return r.isHTMLRedirect, r.htmlRedirectURL
+	content := r.resourceContent
+	if content != nil {
+		return r.resourceContent.IsHTMLRedirect, r.resourceContent.MetaRefreshTagContentURLText
+	} else {
+		return false, ""
+	}
 }
 
 // ResourceContent returns the inspected or downloaded content
@@ -239,66 +341,6 @@ func cleanResource(url *url.URL, rule CleanDiscoveredResourceRule, o observe.Obs
 		return true, cleanedURL
 	}
 	return false, nil
-}
-
-func findMetaRefreshTagInHead(doc *html.Node, o observe.Observatory, parentSpan opentracing.Span) *html.Node {
-	span := o.StartChildTrace("findMetaRefreshTagInHead", parentSpan)
-	defer span.Finish()
-
-	var metaTag *html.Node
-	var inHead bool
-	var f func(*html.Node)
-	f = func(n *html.Node) {
-		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "head") {
-			inHead = true
-		}
-		if inHead && n.Type == html.ElementNode && strings.EqualFold(n.Data, "meta") {
-			for _, attr := range n.Attr {
-				if strings.EqualFold(attr.Key, "http-equiv") && strings.EqualFold(strings.TrimSpace(attr.Val), "refresh") {
-					metaTag = n
-					return
-				}
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
-		}
-	}
-	f(doc)
-	return metaTag
-}
-
-// See for explanation: http://redirectdetective.com/redirection-types.html
-func getMetaRefresh(resp *http.Response, o observe.Observatory, parentSpan opentracing.Span) (bool, string, error) {
-	span := o.StartChildTrace("getMetaRefresh", parentSpan)
-	defer span.Finish()
-
-	doc, parseError := html.Parse(resp.Body)
-	if parseError != nil {
-		opentrext.Error.Set(span, true)
-		span.LogFields(log.Error(parseError))
-		return false, "", parseError
-	}
-	defer resp.Body.Close()
-
-	mn := findMetaRefreshTagInHead(doc, o, parentSpan)
-	if mn == nil {
-		return false, "", nil
-	}
-
-	for _, attr := range mn.Attr {
-		if strings.EqualFold(attr.Key, "content") {
-			contentValue := strings.TrimSpace(attr.Val)
-			parts := metaRefreshContentRegEx.FindStringSubmatch(contentValue)
-			if parts != nil && len(parts) == 3 {
-				// the first part is the entire match
-				// the second and third parts are the delay and URL
-				return true, parts[2], nil
-			}
-		}
-	}
-
-	return false, "", nil
 }
 
 func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLtext string) *HarvestedResource {
@@ -370,10 +412,6 @@ func harvestResource(h *ContentHarvester, parentSpan opentracing.Span, origURLte
 	}
 
 	result.resourceContent = h.detectResourceContent(result.finalURL, resp, h.observatory, span)
-	if result.resourceContent.IsHTML() {
-		result.isHTMLRedirect, result.htmlRedirectURL, result.htmlParseError = getMetaRefresh(resp, h.observatory, span)
-	}
-
 	span.LogFields(log.Object("result", result))
 
 	// TODO once the URL is cleaned, double-check the cleaned URL to see if it's a valid destination; if not, revert to non-cleaned version
