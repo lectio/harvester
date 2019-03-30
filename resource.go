@@ -301,9 +301,8 @@ func (r *HarvestedResource) IsHTMLRedirect() (bool, string) {
 	content := r.resourceContent
 	if content != nil {
 		return content.IsHTMLRedirect()
-	} else {
-		return false, ""
 	}
+	return false, ""
 }
 
 // ResourceContent returns the inspected or downloaded content
