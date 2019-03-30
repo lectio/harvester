@@ -36,7 +36,9 @@ func (suite *ResourceSuite) SetupSuite() {
 	observatory := observe.MakeObservatoryFromEnv()
 	suite.observatory = observatory
 	suite.span = observatory.StartTrace("ResourceSuite")
-	suite.ch = MakeContentHarvester(suite.observatory, DefaultIgnoreURLsRegExList, DefaultCleanURLsRegExList, false)
+
+	// the followHTMLRedirect param is set to false because we want to test the content, it should be true for non-testing use cases
+	suite.ch = MakeContentHarvester(suite.observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, false)
 
 	tmpl, tmplErr := template.ParseFiles("serialize.md.tmpl")
 	if tmplErr != nil {
