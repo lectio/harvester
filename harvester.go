@@ -131,6 +131,11 @@ func MakeContentHarvester(observatory observe.Observatory, ignoreResourceRule Ig
 	return result
 }
 
+// MakeDefaultContentHarvester prepares a content harvester with sensible defaults
+func MakeDefaultContentHarvester(observatory observe.Observatory) *ContentHarvester {
+	return MakeContentHarvester(observatory, defaultIgnoreURLsRegExList, defaultCleanURLsRegExList, true)
+}
+
 // Close will clean up resources, mainly temporary files that were created for downloaded resources
 func (h *ContentHarvester) Close() {
 
