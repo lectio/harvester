@@ -19,7 +19,7 @@ require (
 	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	go.uber.org/atomic v1.3.2 // indirect
 	golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c // indirect
-	golang.org/x/net v0.0.0-20190327091125-710a502c58a2
-	golang.org/x/sys v0.0.0-20190322080309-f49334f85ddc // indirect
+	golang.org/x/net v0.0.0-20190328230028-74de082e2cca
+	golang.org/x/sys v0.0.0-20190329044733-9eb1bfa1ce65 // indirect
 	mvdan.cc/xurls v1.1.0
 )
