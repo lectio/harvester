@@ -9,6 +9,7 @@ require (
 	github.com/h2non/filetype v1.0.8
 	github.com/julianshen/go-readability v0.0.0-20160929030430-accf5123e283 // indirect
 	github.com/julianshen/og v0.0.0-20170124022037-897162c55567
+	github.com/lectio/observe v0.0.0-20190330161145-24f6fc031cdd
 	github.com/mvdan/xurls v1.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/shah/observe-go v0.0.0-20190323193911-920a31073f3b

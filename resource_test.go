@@ -11,8 +11,8 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/lectio/observe"
 	"github.com/opentracing/opentracing-go"
-	observe "github.com/shah/observe-go"
 
 	"github.com/stretchr/testify/suite"
 )

@@ -8,8 +8,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/lectio/observe"
 	"github.com/opentracing/opentracing-go"
-	observe "github.com/shah/observe-go"
 
 	"github.com/opentracing/opentracing-go/log"
 	"mvdan.cc/xurls"

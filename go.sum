@@ -16,6 +16,8 @@ github.com/julianshen/go-readability v0.0.0-20160929030430-accf5123e283 h1:GWAkD
 github.com/julianshen/go-readability v0.0.0-20160929030430-accf5123e283/go.mod h1:iQXTy43phZmgBAHslXv0D2pcN/VlNAs1TtrOwgxyLsY=
 github.com/julianshen/og v0.0.0-20170124022037-897162c55567 h1:AqU/tXClsvlEqUdSf0YtF9oSqSTgQzBRQ8RuKwr1dJs=
 github.com/julianshen/og v0.0.0-20170124022037-897162c55567/go.mod h1:E6tHjMk5U9I9vxkLPYKtxGzXWnVy+LOIhLPYocn8wMA=
+github.com/lectio/observe v0.0.0-20190330161145-24f6fc031cdd h1:Tj3xxsz9XYOw/BaCE7dYFOlwhMlGYJNu3BH9cPBhsw8=
+github.com/lectio/observe v0.0.0-20190330161145-24f6fc031cdd/go.mod h1:U70gz4MZji5a71zVhxqnnip4ca5Tjwn64Ev9NeqGPmc=
 github.com/mvdan/xurls v1.1.0 h1:OpuDelGQ1R1ueQ6sSryzi6P+1RtBpfQHM8fJwlE45ww=
 github.com/mvdan/xurls v1.1.0/go.mod h1:tQlNn3BED8bE/15hnSL2HLkDeLWpNPAwtw7wkEq44oU=
 github.com/opentracing/opentracing-go v1.0.2 h1:3jA2P6O1F9UOrWVpwrIo17pu01KWvNWg4X946/Y5Zwg=
